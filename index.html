@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Galaxia - Música y Noticias en Vivo</title>
+
+    <!-- Enlace a Google Fonts para la fuente 'Poppins' -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS desde su CDN para un diseño rápido y moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos CSS personalizados */
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #0b0c10;
+        }
+        /* Estilo para el "pulgar" del slider de volumen */
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(to right, #66fcf1, #45a29e);
+            border-radius: 5px;
+            outline: none;
+            transition: background 0.2s ease-in-out;
+            margin-top: 1rem;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #66fcf1;
+            border: 2px solid #0b0c10;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 0 5px rgba(102, 252, 241, 0.5);
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #45a29e;
+            transform: scale(1.1);
+        }
+        /* Oculta el icono de pausa por defecto */
+        
+        #pause-icon {
+            display: none;
+        }
+        /* Animación de rotación para el icono de la radio */
+        
+        @keyframes spin-slow {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .animate-spin-slow {
+            animation: spin-slow 8s linear infinite;
+        }
+        /* Estilos para el indicador de estado */
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+            transition: background-color 0.5s ease;
+        }
+        
+        .online {
+            background-color: #10b981;
+            /* Verde */
+        }
+        
+        .offline {
+            background-color: #ef4444;
+            /* Rojo */
+        }
+        
+        .waiting {
+            background-color: #f59e0b;
+            /* Naranja */
+        }
+        
+        #log-output {
+            background-color: #1f2937;
+            color: #d1d5db;
+            font-family: monospace;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            margin-top: 1rem;
+            border: 1px solid #374151;
+        }
+        
+        .log-entry {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+
+<body class="flex items-center justify-center min-h-screen p-4 bg-gray-900">
+    <!-- Contenedor principal del reproductor -->
+    <div id="radio-container" class="bg-gray-800 text-white p-8 rounded-3xl shadow-2xl w-full max-w-lg border-4 border-cyan-500 transition-all duration-500 hover:shadow-cyan-400/50 text-center">
+
+        <h1 class="text-4xl font-bold mb-8 text-cyan-400">Radio Galaxia</h1>
+
+        <!-- Contenedor del reproductor de audio y controles -->
+        <div class="audio-player-container">
+            <audio id="audio-player" class="hidden" preload="none">
+                <!-- La URL de la fuente será actualizada dinámicamente con JavaScript -->
+            </audio>
+
+            <!-- Icono o imagen de la estación de radio -->
+            <div id="cover-art" class="w-48 h-48 mx-auto rounded-full bg-cyan-600 flex items-center justify-center shadow-lg mb-6 border-4 border-white">
+                <svg id="radio-icon" xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="2" />
+                    <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48 0a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
+                </svg>
+            </div>
+
+            <!-- Título y artista de la canción, se actualizarán con los metadatos de Icecast -->
+            <p id="stream-status" class="text-xl font-bold mt-4 mb-2 text-white flex justify-center items-center">
+                Estado: Fuera de línea
+                <span class="status-dot offline"></span>
+            </p>
+            <p id="song-info" class="text-lg text-gray-400 mb-6">Información no disponible</p>
+
+            <!-- Botón principal de Reproducir/Pausar -->
+            <button id="play-pause-btn" class="bg-cyan-400 hover:bg-cyan-500 p-6 rounded-full transition-colors duration-300 transform hover:scale-110 shadow-lg text-black focus:outline-none focus:ring-4 focus:ring-cyan-500 focus:ring-opacity-50">
+                <svg id="play-icon" class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                </svg>
+                <svg id="pause-icon" class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+            </button>
+
+            <!-- Controles para actualizar la URL de Cloudflare -->
+            <div class="mt-8 text-left">
+                <label for="cloudflare-url" class="block text-gray-400 text-sm font-bold mb-2">URL de Cloudflare Tunnel:</label>
+                <!-- Este campo de texto es editable. Puedes cambiar la URL aquí. -->
+                <input type="text" id="cloudflare-url" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:shadow-outline" placeholder="p.ej. https://tunel-aleatorio.trycloudflare.com">
+                <!-- Se ha eliminado la caja de texto para el Punto de Montaje, ya que siempre se usará el valor por defecto de Icecast. -->
+                <button id="update-url-btn" class="mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors duration-300">
+                    Actualizar URL
+                </button>
+            </div>
+
+            <!-- Contenedor para el control de volumen (solo la barra deslizante) -->
+            <div class="mt-8">
+                <input type="range" id="volume-slider" min="0" max="100" value="100" class="flex-grow accent-cyan-500">
+            </div>
+
+            <!-- Bitácora de estado -->
+            <div id="log-output">
+                <div class="log-entry">Esperando la URL...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ------------------------------------------------------------------------
+        // LÓGICA DE JAVASCRIPT
+        // ------------------------------------------------------------------------
+
+        const audioPlayer = document.getElementById('audio-player');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const volumeSlider = document.getElementById('volume-slider');
+        const streamStatus = document.getElementById('stream-status');
+        const songInfo = document.getElementById('song-info');
+        const radioIcon = document.getElementById('radio-icon');
+        const cloudflareUrlInput = document.getElementById('cloudflare-url');
+        const updateUrlBtn = document.getElementById('update-url-btn');
+        const logOutput = document.getElementById('log-output');
+        let statusInterval;
+
+        function log(message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logOutput.prepend(entry); // Añade el mensaje más reciente al inicio
+            // Limitar el número de mensajes en la bitácora
+            if (logOutput.children.length > 10) {
+                logOutput.removeChild(logOutput.lastChild);
+            }
+        }
+
+        function updateStreamSource() {
+            log('Actualizando la URL de la transmisión...');
+            const cloudflareUrl = cloudflareUrlInput.value.trim();
+            // El punto de montaje se ha fijado en el valor por defecto de Icecast
+            const mountPoint = '/stream';
+
+            if (!cloudflareUrl) {
+                log('Error: La URL no puede estar vacía.');
+                updateStatus('offline');
+                return;
+            }
+
+            const baseCloudflareUrl = cloudflareUrl.endsWith('/') ? cloudflareUrl.slice(0, -1) : cloudflareUrl;
+
+            const streamUrl = `${baseCloudflareUrl}${mountPoint}`;
+
+            // Usamos un proxy de terceros para evitar restricciones de CORS y obtener los metadatos de la canción
+            const metadataUrl = `https://corsproxy.io/?${encodeURIComponent(`${baseCloudflareUrl}/status-json.xsl`)}`;
+
+            log(`URL del Stream: ${streamUrl}`);
+            log(`URL de Metadatos (proxy): ${metadataUrl}`);
+            
+            audioPlayer.innerHTML = `<source src="${streamUrl}" type="audio/mpeg">`;
+            audioPlayer.load();
+
+            if (statusInterval) {
+                clearInterval(statusInterval);
+            }
+            // Inmediatamente verificamos el estado y luego cada 10 segundos
+            checkStreamStatus(metadataUrl, streamUrl);
+            statusInterval = setInterval(() => checkStreamStatus(metadataUrl, streamUrl), 10000);
+        }
+
+        function updateStatus(status, songData = null) {
+            const statusDot = document.querySelector('.status-dot');
+            statusDot.classList.remove('online', 'offline', 'waiting');
+
+            if (status === 'online') {
+                streamStatus.innerHTML = `Estado: <span class="text-green-400">En línea</span> <span class="status-dot online"></span>`;
+                playPauseBtn.disabled = false;
+                radioIcon.classList.add('animate-spin-slow');
+                if (songData && songData.title) {
+                    songInfo.textContent = `${songData.title} - ${songData.artist || 'Artista Desconocido'}`;
+                } else {
+                    songInfo.textContent = 'Transmisión en vivo.';
+                }
+            } else if (status === 'waiting') {
+                streamStatus.innerHTML = `Estado: <span class="text-yellow-400">En línea, esperando transmisión</span> <span class="status-dot waiting"></span>`;
+                playPauseBtn.disabled = true;
+                radioIcon.classList.remove('animate-spin-slow');
+                songInfo.textContent = 'Transmisión no disponible.';
+            } else {
+                streamStatus.innerHTML = `Estado: <span class="text-red-400">Fuera de línea</span> <span class="status-dot offline"></span>`;
+                songInfo.textContent = 'Transmisión no disponible.';
+                playPauseBtn.disabled = true;
+                radioIcon.classList.remove('animate-spin-slow');
+                stopPlaying();
+            }
+        }
+
+        function checkStreamStatus(metadataUrl, streamUrl) {
+            log('Verificando el estado del stream...');
+            fetch(metadataUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    log('Metadatos recibidos, procesando...');
+                    let icecastData = null;
+                    if (data && data.icestats) {
+                        icecastData = data;
+                    } else {
+                        throw new Error("La respuesta del proxy no tiene el formato esperado.");
+                    }
+
+                    if (!icecastData || !icecastData.icestats) {
+                        log('Error: La estructura de metadatos no es válida.');
+                        updateStatus('offline');
+                        return;
+                    }
+
+                    const source = icecastData.icestats.source;
+                    const isStreamActive = source && (Array.isArray(source) ? source.length > 0 : Object.keys(source).length > 0);
+                    
+                    if (isStreamActive) {
+                        const sourceData = Array.isArray(source) ? source[0] : source;
+                        log('¡Stream en línea!');
+                        updateStatus('online', sourceData);
+                    } else {
+                        log('Stream en línea, pero no hay transmisión activa.');
+                        updateStatus('waiting');
+                    }
+                })
+                .catch(error => {
+                    log(`Error al verificar el estado: ${error.message}. Esto puede indicar un problema con la URL del túnel o con el proxy.`);
+                    console.error("Error al verificar el estado de la transmisión:", error);
+                    updateStatus('offline');
+                });
+        }
+        
+        function startPlaying() {
+            log('Iniciando la reproducción...');
+            audioPlayer.play().catch(error => {
+                log(`Error al intentar reproducir: ${error.message}. Esto puede ser por un error en la URL o porque no se ha interactuado con la página.`);
+                console.error("Error al intentar reproducir el audio:", error);
+                if (error.name !== 'AbortError') {
+                    stopPlaying();
+                    const cloudflareUrl = cloudflareUrlInput.value.trim();
+                    const baseCloudflareUrl = cloudflareUrl.endsWith('/') ? cloudflareUrl.slice(0, -1) : cloudflareUrl;
+                    const metadataUrl = `https://corsproxy.io/?${encodeURIComponent(`${baseCloudflareUrl}/status-json.xsl`)}`;
+                    checkStreamStatus(metadataUrl);
+                }
+            });
+        }
+
+        function stopPlaying() {
+            log('Pausando la reproducción...');
+            audioPlayer.pause();
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                startPlaying();
+            } else {
+                stopPlaying();
+            }
+        });
+
+        audioPlayer.addEventListener('play', () => {
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'block';
+            radioIcon.classList.add('animate-spin-slow');
+            log('Reproducción en curso.');
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+            radioIcon.classList.remove('animate-spin-slow');
+            log('Reproducción pausada.');
+        });
+        
+        audioPlayer.addEventListener('error', (e) => {
+            log(`¡Error en la transmisión! La URL podría estar caída.`);
+            console.error("Error en la transmisión:", e);
+            stopPlaying();
+            const cloudflareUrl = cloudflareUrlInput.value.trim();
+            const baseCloudflareUrl = cloudflareUrl.endsWith('/') ? cloudflareUrl.slice(0, -1) : cloudflareUrl;
+            const metadataUrl = `https://corsproxy.io/?${encodeURIComponent(`${baseCloudflareUrl}/status-json.xsl`)}`;
+            checkStreamStatus(metadataUrl);
+        });
+
+        audioPlayer.volume = volumeSlider.value / 100;
+        volumeSlider.addEventListener('input', (event) => {
+            const sliderValue = event.target.value / 100;
+            audioPlayer.volume = sliderValue;
+        });
+
+        updateUrlBtn.addEventListener('click', updateStreamSource);
+
+        cloudflareUrlInput.value = '';
+    </script>
+</body>
+
+</html>
